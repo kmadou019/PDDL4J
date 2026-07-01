@@ -1,0 +1,31 @@
+# Compiled Java classes
+*.class
+sat_planner/classes/
+
+# Maven build output
+target/
+*.jar
+*.war
+
+# Maven local repo cache (never commit)
+.m2/
+
+# IDE - Eclipse
+.project
+.classpath
+.settings/
+
+# IDE - IntelliJ
+.idea/
+*.iml
+*.iws
+
+# IDE - VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SAT4J is a cloned external repo, not part of this project
+sat4j/

@@ -26,6 +26,10 @@ import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
 
+import org.sat4j.specs.*;
+import org.sat4j.minisat.*;
+
+
 /**
  * The class is an example. It shows how to create a simple A* search planner able to
  * solve an ADL problem by choosing the heuristic to used and its weight.
@@ -62,15 +66,44 @@ public class SatPlanner extends AbstractPlanner {
         pb.instantiate();
         return pb;
     }
+    /**
+     * Encode problem into a satisfiablitity problem and returning it as
+     * a set of clauses. That will be solved by sat4j
+     * @param problem
+     * @return
+    */
+    public Ivec<IVecInt> encode(final Problem problem, int step){
+        
+
+    }
+
+    public Plan decode(int[] model){
+
+        return new SequentialPlan();
+    }
 
     /**
      * Search a solution plan to a specified domain and problem using A*.
+     * We assume that the problem took from the input is not encoded. Thus
+     * we need to encode the problem into a satisfiability problem.
      *
      * @param problem the problem to solve.
      * @return the plan found or null if no plan was found.
      */
     @Override
     public Plan solve(final Problem problem) {
+
+        IVec<IVecInt> clauses = encode(problem);
+        ISolver solver = SolverFactory.newDefault();
+        solver.addAllClauses(clauses);
+
+        int[] model = solver.findModel();
+        // Now the model is found, I need to decode it as a plan
+        // decode(model);
+
+        Plan plan = decode(model);
+
+        return plan;
     }
 
     /**

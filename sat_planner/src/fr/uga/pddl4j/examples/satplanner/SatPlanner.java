@@ -15,19 +15,32 @@ import fr.uga.pddl4j.problem.DefaultProblem;
 import fr.uga.pddl4j.problem.Problem;
 import fr.uga.pddl4j.problem.State;
 import fr.uga.pddl4j.problem.operator.Action;
+import fr.uga.pddl4j.problem.operator.Condition;
 import fr.uga.pddl4j.problem.operator.ConditionalEffect;
+import fr.uga.pddl4j.problem.operator.Effect;
+import fr.uga.pddl4j.problem.InitialState;
+import fr.uga.pddl4j.problem.Fluent;
+import fr.uga.pddl4j.util.BitVector;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import picocli.CommandLine;
 
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.sat4j.specs.*;
 import org.sat4j.minisat.*;
+import org.sat4j.core.Vec;
+import org.sat4j.core.VecInt;
+import org.sat4j.specs.ContradictionException;
+import org.sat4j.specs.TimeoutException;
+
 
 
 /**
@@ -72,9 +85,77 @@ public class SatPlanner extends AbstractPlanner {
      * @param problem
      * @return
     */
-    public Ivec<IVecInt> encode(final Problem problem, int step){
+    public IVec<IVecInt> encode(final Problem problem, int steps){
         
+        IVec<IVecInt> clauses = new Vec<IVecInt>();
+        //Initial state encoding step = 0:
+        BitVector positiveFluents = problem.getInitialState().getPositiveFluents();
+        int nbFluents = problem.getFluents().size();
+        for (int i = 0; i < nbFluents; i++) {
+            int fluentUniqueNumber = i+1; // step0 * nbFluents + i + 1;
+            if (positiveFluents.get(i)) {
+                clauses.push(new VecInt( new int[]{fluentUniqueNumber} ));
+            }else{
+                clauses.push(new VecInt( new int[]{-fluentUniqueNumber} ));
+            }
+        }
 
+        //goal state encoding step = N
+        BitVector goalFluents = problem.getGoal().getPositiveFluents();
+        for (int i = 0; i < nbFluents; i++) {
+            if (goalFluents.get(i)) {
+                int goalFluentUniqueNumber = steps*nbFluents + i + 1;
+                clauses.push(new VecInt( new int[]{goalFluentUniqueNumber} ));
+            }
+        }
+
+        List<Action> actions = problem.getActions();
+        int nbAction = actions.size();
+        for (int step = 0; step < steps; step++) {
+            //actions encoding for each step : 0 -> N-1
+            for (int actionIndex=0; actionIndex < actions.size(); actionIndex++) {
+
+                Action action = actions.get(actionIndex);
+                int ai = (steps+1) * nbFluents + step * nbAction + actionIndex + 1; 
+                
+                BitVector preconditonFluents = action.getPrecondition().getPositiveFluents();
+                for (int i = 0; i < nbFluents; i++) {
+                    if (preconditonFluents.get(i)) {
+                        int preconditionUniqueNumber = step * nbFluents + i + 1;
+                        clauses.push(new VecInt( new int[]{-ai,preconditionUniqueNumber} ));
+                    }
+                }
+                
+                List<ConditionalEffect> effects = action.getConditionalEffects();
+                for (int i = 0; i < effects.size(); i++) {
+                    BitVector posEffectFluents = effects.get(i).getEffect().getPositiveFluents();
+                    BitVector negEffectFluents = effects.get(i).getEffect().getNegativeFluents();
+                    for (int j = 0; j < nbFluents; j++) {
+                        int uniqueEffectNumber = nbFluents * (step+1) + j + 1;
+                        if (posEffectFluents.get(j)) {
+                            clauses.push(new VecInt( new int[]{-ai,uniqueEffectNumber} ));
+                        }else if(negEffectFluents.get(j)){
+                            clauses.push(new VecInt( new int[]{-ai,-uniqueEffectNumber} ));
+                        }
+                    }
+                }
+
+            }
+            //Action disjunction encoding for each step : 0 -> N-1
+            for (int i = 0; i < nbAction; i++) {
+                int ai = (steps+1) * nbFluents + step * nbAction + i + 1;
+                for (int j = i+1; j < nbAction; j++) {
+                    int aj = (steps+1) * nbFluents + step * nbAction + j + 1;
+                    clauses.push(new VecInt(new int[]{-ai, -aj}));
+                }
+            }
+
+            //Transition encoding for each step : 0 -> N-1
+
+            
+        }
+
+        return clauses;
     }
 
     public Plan decode(int[] model){
@@ -93,17 +174,23 @@ public class SatPlanner extends AbstractPlanner {
     @Override
     public Plan solve(final Problem problem) {
 
-        IVec<IVecInt> clauses = encode(problem);
+        int steps = 2;
+        IVec<IVecInt> clauses = encode(problem,steps);
         ISolver solver = SolverFactory.newDefault();
-        solver.addAllClauses(clauses);
-
-        int[] model = solver.findModel();
-        // Now the model is found, I need to decode it as a plan
-        // decode(model);
-
-        Plan plan = decode(model);
-
-        return plan;
+        try {
+            solver.addAllClauses(clauses);
+            int[] model = solver.findModel();
+             // Now the model is found, I need to decode it as a plan
+             // decode(model);
+             Plan plan = decode(model);
+             return plan;
+        } catch (ContradictionException e) {
+            System.out.println(e);
+            return null;
+        }catch (TimeoutException e){
+            System.err.println(e);
+            return null;
+        }
     }
 
     /**

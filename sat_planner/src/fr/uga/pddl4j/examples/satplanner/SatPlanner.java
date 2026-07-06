@@ -72,6 +72,11 @@ public class SatPlanner extends AbstractPlanner {
      * @return the instantiated planning problem or null if the problem cannot be instantiated.
      */
     @Override
+    public boolean isSupported(Problem problem) {
+        return true;
+    }
+
+    @Override
     public Problem instantiate(DefaultParsedProblem problem) {
         final Problem pb = new DefaultProblem(problem);
         pb.instantiate();
@@ -214,6 +219,8 @@ public class SatPlanner extends AbstractPlanner {
         try {
             solver.addAllClauses(clauses);
             int[] model = solver.findModel();
+            System.out.println(Arrays.toString(model));
+
              // Now the model is found, I need to decode it as a plan
              // decode(model);
              Plan plan = decode(model);

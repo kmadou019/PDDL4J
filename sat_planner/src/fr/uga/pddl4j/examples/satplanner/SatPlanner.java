@@ -61,6 +61,8 @@ import org.sat4j.core.VecInt;
     optionListHeading = "%nOptions:%n")
 public class SatPlanner extends AbstractPlanner {
 
+    private static final int MAX_STEPS = 30;
+
     /**
      * The class logger.
      */
@@ -232,22 +234,22 @@ public class SatPlanner extends AbstractPlanner {
      */
     @Override
     public Plan solve(final Problem problem) {
-
-        int steps = 2;
-        IVec<IVecInt> clauses = encode(problem,steps);
-        ISolver solver = SolverFactory.newDefault();
-        try {
-            solver.addAllClauses(clauses);
-            int[] model = solver.findModel();
-            Plan plan = decode(problem, steps, model);
-            return plan;
-        } catch (ContradictionException e) {
-            System.out.println(e);
-            return null;
-        }catch (TimeoutException e){
-            System.err.println(e);
-            return null;
-        } 
+        for (int steps = 1; steps <= MAX_STEPS; steps++) {
+            IVec<IVecInt> clauses = encode(problem, steps);
+            ISolver solver = SolverFactory.newDefault();
+            try {
+                solver.addAllClauses(clauses);
+                int[] model = solver.findModel();
+                if (model != null) {
+                    return decode(problem, steps, model);
+                }
+            } catch (ContradictionException e) {
+                // UNSAT for this bound, try next step
+            } catch (TimeoutException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     /**

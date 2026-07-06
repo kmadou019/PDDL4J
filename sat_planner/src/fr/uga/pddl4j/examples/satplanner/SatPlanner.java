@@ -38,8 +38,6 @@ import org.sat4j.specs.*;
 import org.sat4j.minisat.*;
 import org.sat4j.core.Vec;
 import org.sat4j.core.VecInt;
-import org.sat4j.specs.ContradictionException;
-import org.sat4j.specs.TimeoutException;
 
 
 
@@ -113,7 +111,7 @@ public class SatPlanner extends AbstractPlanner {
         int nbAction = actions.size();
         for (int step = 0; step < steps; step++) {
             //actions encoding for each step : 0 -> N-1
-            for (int actionIndex=0; actionIndex < actions.size(); actionIndex++) {
+            for (int actionIndex=0; actionIndex < nbAction; actionIndex++) {
 
                 Action action = actions.get(actionIndex);
                 int ai = (steps+1) * nbFluents + step * nbAction + actionIndex + 1; 
@@ -151,7 +149,43 @@ public class SatPlanner extends AbstractPlanner {
             }
 
             //Transition encoding for each step : 0 -> N-1
+            List<Fluent> fluents = problem.getFluents();
+            for (int i = 0; i < fluents.size(); i++) {
+                int fi = step * nbFluents + i + 1;
+                int fi_1 = (step+1) * nbFluents + i + 1;
 
+                // f becomes true → at least one action with f as positive effect was executed
+                // clause : fi ∨ ¬fi_1 ∨ (a1 ∨ a2 ∨ ...)
+                IVecInt posClause = new VecInt();
+                posClause.push(fi);
+                posClause.push(-fi_1);
+
+                // f becomes false → at least one action with f as negative effect was executed
+                // clause : ¬fi ∨ fi_1 ∨ (a1 ∨ a2 ∨ ...)
+                IVecInt negClause = new VecInt();
+                negClause.push(-fi);
+                negClause.push(fi_1);
+
+
+                for (int actionIndex = 0; actionIndex < nbAction; actionIndex++) {
+                    Action action = actions.get(actionIndex);
+                    int ai = (steps+1) * nbFluents + step * nbAction + actionIndex + 1;
+                    List<ConditionalEffect> effects = action.getConditionalEffects();
+                    for (int j = 0; j < effects.size(); j++) {
+                        BitVector posFluentsEffectA = effects.get(j).getEffect().getPositiveFluents();
+                        BitVector negFluentsEffectA = effects.get(j).getEffect().getNegativeFluents();
+                        if (posFluentsEffectA.get(i)) {
+                            posClause.push(ai);
+                        }
+                        if (negFluentsEffectA.get(i)) {
+                            negClause.push(ai);
+                        }
+                    }
+                }
+
+                clauses.push(posClause);
+                clauses.push(negClause);
+            }
             
         }
 

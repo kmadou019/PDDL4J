@@ -1,6 +1,6 @@
 # Compiled Java classes
 *.class
-sat_planner/classes/
+classes/
 
 # Maven build output
 target/

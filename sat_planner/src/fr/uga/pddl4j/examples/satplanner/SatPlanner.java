@@ -26,6 +26,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import picocli.CommandLine;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -197,9 +198,28 @@ public class SatPlanner extends AbstractPlanner {
         return clauses;
     }
 
-    public Plan decode(int[] model){
-
-        return new SequentialPlan();
+    public Plan decode(Problem problem, int steps, int[] model){
+        //int ai = (steps+1) * nbFluents + step * nbAction + actionIndex + 1;
+        Plan plan = new SequentialPlan();
+        int nbFluents = problem.getFluents().size();
+        int nbAction  = problem.getActions().size();
+        List<Integer> ai_s = new ArrayList<>();
+        for (int i = 0; i < model.length; i++) {
+            if (model[i] > (steps+1)*nbFluents ) {
+                ai_s.add(model[i]);
+            }
+        }
+        int k = 0;
+        for (int step = 0; step < steps; step++) {
+            for (int ai : ai_s) {
+                int actionIndex = ai - ((steps+1) * nbFluents + step * nbAction + 1);
+                if (actionIndex >= 0 && actionIndex < nbAction) {
+                    plan.add(k, problem.getActions().get(actionIndex));
+                    k++;
+                }
+            }
+        }
+        return plan;
     }
 
     /**
@@ -219,19 +239,15 @@ public class SatPlanner extends AbstractPlanner {
         try {
             solver.addAllClauses(clauses);
             int[] model = solver.findModel();
-            System.out.println(Arrays.toString(model));
-
-             // Now the model is found, I need to decode it as a plan
-             // decode(model);
-             Plan plan = decode(model);
-             return plan;
+            Plan plan = decode(problem, steps, model);
+            return plan;
         } catch (ContradictionException e) {
             System.out.println(e);
             return null;
         }catch (TimeoutException e){
             System.err.println(e);
             return null;
-        }
+        } 
     }
 
     /**
